@@ -14,7 +14,7 @@
     justify-content: space-around;
     padding: 15px 0 15px 0;
     /*background-image: linear-gradient(to right, #0a4a41, #1a6e65, #29948c, #38bcb6, #47e5e4);*/
-    background-image: linear-gradient(90deg, rgba(36,12,0,1) 0%, rgba(121,73,9,1) 50%, rgba(36,12,0,1) 100%);
+    background-image: linear-gradient(90deg, rgba(63,94,251,1) 0%, rgba(252,70,107,1) 100%);
 }
 
 fieldset {
@@ -41,7 +41,7 @@ input {
     justify-content: space-around;
     padding: 10px;
     /*background-image: linear-gradient(to right, #0a4a41, #1a6e65, #29948c, #38bcb6, #47e5e4);*/
-    background-image: linear-gradient(90deg, rgba(36,12,0,1) 0%, rgba(121,73,9,1) 50%, rgba(36,12,0,1) 100%);
+    background-image: linear-gradient(90deg, rgba(63,94,251,1) 0%, rgba(252,70,107,1) 100%);
 }
 
 button {
@@ -154,7 +154,7 @@ table {
 }
 
 thead {
-    background-color: #4d2e06;
+    background-image: linear-gradient(90deg, rgba(63,94,251,1) 0%, rgba(252,70,107,1) 100%);
     color: white;
 }
   
