@@ -138,7 +138,7 @@ var registrarProceso = function (proceso) {
 };
 var registrarProcesoEntry = function (proceso) {
     tableEntry.children[1].innerHTML +=
-        "<tr>\n            <td>".concat(proceso.nombre, "</td>\n            <td>").concat(proceso.tiempo_llegada, "</td>\n            <td>").concat(proceso.rafaga, "</td>\n        </tr>");
+        "<tr>\n            <td>".concat(proceso.nombre, "</td>\n            <td>").concat(proceso.tiempo_llegada, "</td>\n            <td>").concat(proceso.rafaga, "</td>\n         </tr>");
 };
 /**
  * Función que dibuja la recta asociada a cada proceso en el canvas.
@@ -266,6 +266,9 @@ var handlerSeccionCritica = function () {
     i++;
     if (proceso.rafaga > quantum) {
         var procesoSobrante = crearProceso("$".concat(proceso.nombre), proceso.tiempo_llegada, proceso.rafaga - proceso.tiempo_ejecutado);
+        procesoSobrante.bloqueo.bloqueado = true;
+        procesoSobrante.bloqueo.tiempo_llegada = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
+        procesoSobrante.tiempo_espera = proceso.tiempo_espera;
         procesos.push(procesoSobrante);
     }
 };

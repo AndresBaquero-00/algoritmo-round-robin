@@ -182,7 +182,7 @@ const registrarProcesoEntry = (proceso: Proceso): void => {
             <td>${proceso.nombre}</td>
             <td>${proceso.tiempo_llegada}</td>
             <td>${proceso.rafaga}</td>
-        </tr>`;
+         </tr>`;
 }
 
 /**
@@ -318,7 +318,6 @@ const handlerSeccionCritica = (): void => {
     const proceso: Proceso = registrarDatosProceso(procesos.splice(0, 1)[0]);
     dibujarProceso(proceso);
     registrarProceso(proceso);
-    change();
     lastProceso = proceso;
     i++;
 
@@ -328,9 +327,13 @@ const handlerSeccionCritica = (): void => {
             proceso.tiempo_llegada,
             proceso.rafaga - proceso.tiempo_ejecutado
         );
-
+        procesoSobrante.bloqueo.bloqueado = true;
+        procesoSobrante.bloqueo.tiempo_llegada = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
+        procesoSobrante.tiempo_espera = proceso.tiempo_espera;
         procesos.push(procesoSobrante);
     }
+
+    change();
 }
 
 /**
