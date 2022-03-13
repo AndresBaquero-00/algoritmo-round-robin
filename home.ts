@@ -14,6 +14,7 @@ interface Proceso {
     tiempo_final?: number;
     tiempo_retorno?: number;
     tiempo_espera?: number;
+    padre: Proceso;
 }
 
 
@@ -120,6 +121,7 @@ const crearProceso = (
     nombre: string = txtProceso.value,
     tiempo_llegada: number = parseInt(txtLlegada.value),
     rafaga: number = parseInt(txtRafaga.value),
+    padre: Proceso = undefined
 ): Proceso => {
     const proceso: Proceso = {
         nombre: nombre,
@@ -134,7 +136,8 @@ const crearProceso = (
             tiempo_block: 0,
             tiempo_llegada: 0,
             bloqueado: false
-        }
+        },
+        padre: padre
     }
     return proceso;
 }
@@ -146,15 +149,25 @@ const registrarDatosProceso = (proceso: Proceso): Proceso => {
         proceso.tiempo_comienzo = lastProceso.tiempo_final >= proceso.tiempo_llegada ? 
             lastProceso.tiempo_final : proceso.tiempo_llegada;
 
-        if (proceso.bloqueo.bloqueado) {
-            proceso.tiempo_comienzo += proceso.bloqueo.tiempo_block;
+        if (proceso.padre && proceso.padre.bloqueo.bloqueado) {
+            proceso.tiempo_comienzo += proceso.padre.bloqueo.tiempo_block;
         }
     }
 
     proceso.tiempo_final = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
-    proceso.tiempo_retorno = proceso.bloqueo.bloqueado ?
-        proceso.tiempo_final - proceso.bloqueo.tiempo_llegada:proceso.tiempo_final - proceso.tiempo_llegada;
-    proceso.tiempo_espera += proceso.tiempo_retorno - proceso.tiempo_ejecutado;
+    proceso.tiempo_retorno = proceso.padre && proceso.padre.bloqueo.bloqueado ?
+        proceso.tiempo_final - proceso.padre.bloqueo.tiempo_llegada:proceso.tiempo_final - proceso.tiempo_llegada;
+    
+    if (proceso.padre) {
+        if (proceso.padre.bloqueo.bloqueado) {
+            proceso.tiempo_espera = proceso.padre.tiempo_espera + proceso.tiempo_retorno - proceso.tiempo_llegada;
+        } else {
+            proceso.tiempo_espera = proceso.tiempo_retorno - (proceso.padre.tiempo_ejecutado + proceso.tiempo_ejecutado)
+        }
+        
+    } else {
+        proceso.tiempo_espera = proceso.tiempo_retorno - proceso.tiempo_ejecutado;
+    }
     
     return proceso;
 }
@@ -198,9 +211,9 @@ const dibujarProceso = (proceso: Proceso): void => {
     /* Dibuja (|) tiempo de llegada */
     ctx.setLineDash([]);
     ctx.beginPath();
-    if (proceso.bloqueo.bloqueado) {
-        ctx.moveTo(2 + proceso.bloqueo.tiempo_llegada*10, 2 + 35*(i + 1));
-        ctx.lineTo(2 + proceso.bloqueo.tiempo_llegada*10, 13 + 35*(i + 1));
+    if (proceso.padre) {
+        ctx.moveTo(2 + (proceso.padre.tiempo_comienzo + proceso.padre.tiempo_ejecutado)*10, 2 + 35*(i + 1));
+        ctx.lineTo(2 + (proceso.padre.tiempo_comienzo + proceso.padre.tiempo_ejecutado)*10, 13 + 35*(i + 1));
     } else {
         ctx.moveTo(2 + proceso.tiempo_llegada*10, 2 + 35*(i + 1));
         ctx.lineTo(2 + proceso.tiempo_llegada*10, 13 + 35*(i + 1));
@@ -228,14 +241,16 @@ const dibujarProceso = (proceso: Proceso): void => {
     /* Dibuja linea desde tiempo de llegada hasta tiempo de comienzo (Tiempo Espera) */
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
-    if (proceso.bloqueo.bloqueado) {
-        ctx.moveTo(2 + proceso.bloqueo.tiempo_llegada*10, 7.5 + 35*(i + 1));
+    if (proceso.padre) {
+        ctx.moveTo(2 + (proceso.padre.tiempo_comienzo + proceso.padre.tiempo_ejecutado)*10, 7.5 + 35*(i + 1));
         ctx.lineTo(2 + proceso.tiempo_comienzo*10, 7.5 + 35*(i + 1));
     } else {
         ctx.moveTo(2 + proceso.tiempo_llegada*10, 7.5 + 35*(i + 1));
         ctx.lineTo(2 + proceso.tiempo_comienzo*10, 7.5 + 35*(i + 1));
     }
     ctx.stroke();
+
+    ctx.fillText(proceso.nombre, 15 + (proceso.tiempo_comienzo + proceso.tiempo_ejecutado)*10, 13 + 35*(i + 1));
 }
 
 /**
@@ -285,14 +300,17 @@ const bloquearProceso = (): void => {
     }
 
     const proceso: Proceso = registrarDatosProceso(procesos.splice(0, 1)[0]);
+    proceso.bloqueo.tiempo_llegada = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
     bloqueados.push(proceso);
     registrarProceso(proceso);
     dibujarProceso(proceso);
-    change();
+    
     lastProceso = proceso;
     i++;
 
     alert(`El proceso ${ proceso.nombre } ha sido bloqueado.`);
+
+    change();
 }
 
 /**
@@ -316,8 +334,8 @@ const handlerSeccionCritica = (): void => {
     }
 
     const proceso: Proceso = registrarDatosProceso(procesos.splice(0, 1)[0]);
-    dibujarProceso(proceso);
     registrarProceso(proceso);
+    dibujarProceso(proceso);
     lastProceso = proceso;
     i++;
 
@@ -325,14 +343,11 @@ const handlerSeccionCritica = (): void => {
         const procesoSobrante: Proceso = crearProceso(
             `$${ proceso.nombre }`,
             proceso.tiempo_llegada,
-            proceso.rafaga - proceso.tiempo_ejecutado
+            proceso.rafaga - proceso.tiempo_ejecutado,
+            proceso
         );
-        procesoSobrante.bloqueo.bloqueado = true;
-        procesoSobrante.bloqueo.tiempo_llegada = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
-        procesoSobrante.tiempo_espera = proceso.tiempo_espera;
         procesos.push(procesoSobrante);
     }
-
     change();
 }
 
@@ -349,19 +364,16 @@ const handlerColaBloqueo = (): void => {
             const proceso_reanudado: Proceso = crearProceso(
                 `${ proceso_bloqueado.nombre }*`,
                 proceso_bloqueado.tiempo_llegada,
-                proceso_bloqueado.rafaga - proceso_bloqueado.tiempo_ejecutado
+                proceso_bloqueado.rafaga - proceso_bloqueado.tiempo_ejecutado,
+                proceso_bloqueado
             );
-            proceso_reanudado.bloqueo.bloqueado = true;
-            proceso_reanudado.bloqueo.tiempo_block = proceso_bloqueado.bloqueo.tiempo_block;
-            proceso_reanudado.bloqueo.tiempo_llegada = proceso_bloqueado.tiempo_comienzo + proceso_bloqueado.tiempo_ejecutado;
-            proceso_reanudado.tiempo_espera = proceso_bloqueado.tiempo_espera;
 
             procesos.push(proceso_reanudado);
 
             alert(`El proceso ${ proceso_bloqueado.nombre } ha sido desbloqueado.`);
+
             hayProcesos = true;
             ejecutarProceso();
-            // 
         }
     }
 }

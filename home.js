@@ -90,10 +90,11 @@ var change = function () {
  * @param { number } rafaga Rafaga del proceso.
  * @returns El proceso con sus respectivos datos.
  */
-var crearProceso = function (nombre, tiempo_llegada, rafaga) {
+var crearProceso = function (nombre, tiempo_llegada, rafaga, padre) {
     if (nombre === void 0) { nombre = txtProceso.value; }
     if (tiempo_llegada === void 0) { tiempo_llegada = parseInt(txtLlegada.value); }
     if (rafaga === void 0) { rafaga = parseInt(txtRafaga.value); }
+    if (padre === void 0) { padre = undefined; }
     var proceso = {
         nombre: nombre,
         tiempo_llegada: tiempo_llegada,
@@ -107,7 +108,8 @@ var crearProceso = function (nombre, tiempo_llegada, rafaga) {
             tiempo_block: 0,
             tiempo_llegada: 0,
             bloqueado: false
-        }
+        },
+        padre: padre
     };
     return proceso;
 };
@@ -118,14 +120,24 @@ var registrarDatosProceso = function (proceso) {
     else {
         proceso.tiempo_comienzo = lastProceso.tiempo_final >= proceso.tiempo_llegada ?
             lastProceso.tiempo_final : proceso.tiempo_llegada;
-        if (proceso.bloqueo.bloqueado) {
-            proceso.tiempo_comienzo += proceso.bloqueo.tiempo_block;
+        if (proceso.padre && proceso.padre.bloqueo.bloqueado) {
+            proceso.tiempo_comienzo += proceso.padre.bloqueo.tiempo_block;
         }
     }
     proceso.tiempo_final = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
-    proceso.tiempo_retorno = proceso.bloqueo.bloqueado ?
-        proceso.tiempo_final - proceso.bloqueo.tiempo_llegada : proceso.tiempo_final - proceso.tiempo_llegada;
-    proceso.tiempo_espera += proceso.tiempo_retorno - proceso.tiempo_ejecutado;
+    proceso.tiempo_retorno = proceso.padre && proceso.padre.bloqueo.bloqueado ?
+        proceso.tiempo_final - proceso.padre.bloqueo.tiempo_llegada : proceso.tiempo_final - proceso.tiempo_llegada;
+    if (proceso.padre) {
+        if (proceso.padre.bloqueo.bloqueado) {
+            proceso.tiempo_espera = proceso.padre.tiempo_espera + proceso.tiempo_retorno - proceso.tiempo_llegada;
+        }
+        else {
+            proceso.tiempo_espera = proceso.tiempo_retorno - (proceso.padre.tiempo_ejecutado + proceso.tiempo_ejecutado);
+        }
+    }
+    else {
+        proceso.tiempo_espera = proceso.tiempo_retorno - proceso.tiempo_ejecutado;
+    }
     return proceso;
 };
 /**
@@ -153,9 +165,9 @@ var dibujarProceso = function (proceso) {
     /* Dibuja (|) tiempo de llegada */
     ctx.setLineDash([]);
     ctx.beginPath();
-    if (proceso.bloqueo.bloqueado) {
-        ctx.moveTo(2 + proceso.bloqueo.tiempo_llegada * 10, 2 + 35 * (i + 1));
-        ctx.lineTo(2 + proceso.bloqueo.tiempo_llegada * 10, 13 + 35 * (i + 1));
+    if (proceso.padre) {
+        ctx.moveTo(2 + (proceso.padre.tiempo_comienzo + proceso.padre.tiempo_ejecutado) * 10, 2 + 35 * (i + 1));
+        ctx.lineTo(2 + (proceso.padre.tiempo_comienzo + proceso.padre.tiempo_ejecutado) * 10, 13 + 35 * (i + 1));
     }
     else {
         ctx.moveTo(2 + proceso.tiempo_llegada * 10, 2 + 35 * (i + 1));
@@ -180,8 +192,8 @@ var dibujarProceso = function (proceso) {
     /* Dibuja linea desde tiempo de llegada hasta tiempo de comienzo (Tiempo Espera) */
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
-    if (proceso.bloqueo.bloqueado) {
-        ctx.moveTo(2 + proceso.bloqueo.tiempo_llegada * 10, 7.5 + 35 * (i + 1));
+    if (proceso.padre) {
+        ctx.moveTo(2 + (proceso.padre.tiempo_comienzo + proceso.padre.tiempo_ejecutado) * 10, 7.5 + 35 * (i + 1));
         ctx.lineTo(2 + proceso.tiempo_comienzo * 10, 7.5 + 35 * (i + 1));
     }
     else {
@@ -189,6 +201,7 @@ var dibujarProceso = function (proceso) {
         ctx.lineTo(2 + proceso.tiempo_comienzo * 10, 7.5 + 35 * (i + 1));
     }
     ctx.stroke();
+    ctx.fillText(proceso.nombre, 15 + (proceso.tiempo_comienzo + proceso.tiempo_ejecutado) * 10, 13 + 35 * (i + 1));
 };
 /**
  * Funcion que permite agregar un proceso a la cola de espera.
@@ -233,13 +246,14 @@ var bloquearProceso = function () {
         return;
     }
     var proceso = registrarDatosProceso(procesos.splice(0, 1)[0]);
+    proceso.bloqueo.tiempo_llegada = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
     bloqueados.push(proceso);
     registrarProceso(proceso);
     dibujarProceso(proceso);
-    change();
     lastProceso = proceso;
     i++;
     alert("El proceso ".concat(proceso.nombre, " ha sido bloqueado."));
+    change();
 };
 /**
  * Función encargada del manejo de la sección crítica.
@@ -259,18 +273,15 @@ var handlerSeccionCritica = function () {
         return;
     }
     var proceso = registrarDatosProceso(procesos.splice(0, 1)[0]);
-    dibujarProceso(proceso);
     registrarProceso(proceso);
-    change();
+    dibujarProceso(proceso);
     lastProceso = proceso;
     i++;
     if (proceso.rafaga > quantum) {
-        var procesoSobrante = crearProceso("$".concat(proceso.nombre), proceso.tiempo_llegada, proceso.rafaga - proceso.tiempo_ejecutado);
-        procesoSobrante.bloqueo.bloqueado = true;
-        procesoSobrante.bloqueo.tiempo_llegada = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
-        procesoSobrante.tiempo_espera = proceso.tiempo_espera;
+        var procesoSobrante = crearProceso("$".concat(proceso.nombre), proceso.tiempo_llegada, proceso.rafaga - proceso.tiempo_ejecutado, proceso);
         procesos.push(procesoSobrante);
     }
+    change();
 };
 /**
  * Función encargada del manejo de los procesos bloqueados.
@@ -283,16 +294,11 @@ var handlerColaBloqueo = function () {
         }
         else {
             var proceso_bloqueado = bloqueados.splice(0, 1)[0];
-            var proceso_reanudado = crearProceso("".concat(proceso_bloqueado.nombre, "*"), proceso_bloqueado.tiempo_llegada, proceso_bloqueado.rafaga - proceso_bloqueado.tiempo_ejecutado);
-            proceso_reanudado.bloqueo.bloqueado = true;
-            proceso_reanudado.bloqueo.tiempo_block = proceso_bloqueado.bloqueo.tiempo_block;
-            proceso_reanudado.bloqueo.tiempo_llegada = proceso_bloqueado.tiempo_comienzo + proceso_bloqueado.tiempo_ejecutado;
-            proceso_reanudado.tiempo_espera = proceso_bloqueado.tiempo_espera;
+            var proceso_reanudado = crearProceso("".concat(proceso_bloqueado.nombre, "*"), proceso_bloqueado.tiempo_llegada, proceso_bloqueado.rafaga - proceso_bloqueado.tiempo_ejecutado, proceso_bloqueado);
             procesos.push(proceso_reanudado);
             alert("El proceso ".concat(proceso_bloqueado.nombre, " ha sido desbloqueado."));
             hayProcesos = true;
             ejecutarProceso();
-            // 
         }
     }
 };
