@@ -301,6 +301,7 @@ const bloquearProceso = (): void => {
 
     const proceso: Proceso = registrarDatosProceso(procesos.splice(0, 1)[0]);
     proceso.bloqueo.tiempo_llegada = proceso.tiempo_comienzo + proceso.tiempo_ejecutado;
+    proceso.bloqueo.bloqueado = true;
     bloqueados.push(proceso);
     registrarProceso(proceso);
     dibujarProceso(proceso);
